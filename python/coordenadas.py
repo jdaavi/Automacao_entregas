@@ -3,6 +3,49 @@ from geopy.distance import geodesic
 import numpy as np
 import tkinter as tk
 from tkinter import messagebox
+import psycopg2
+
+
+def conectar_banco():
+    try:
+        conexao = psycopg2.connect (
+            host = 'datalake_menu.postgresql.dbaas.com.br',
+            database = 'datalake_menu',
+            user = 'datalake_menu',
+            password = 'Acesso1!'
+        )
+        return conexao
+    except Exception as e:
+        print(f'Erro ao conectar ao banco: {e}')
+        return None
+
+def obter_ditancia_banco(endereco1, endereco2):
+    conexao = conectar_banco()
+    if conexao:
+        try:
+            cursor = conexao.cursor()
+            query = """SELECT distancia FROM distancias WHERE endereco1 = %s AND endereco2 = %s"""
+            cursor.execute(query, (endereco1, endereco2))
+            conexao.commit()
+        except Exception as e:
+            print(f"Erro ao registrar no banco: {e}")
+        finally:
+            conexao.close()
+
+def registrar_distancia_banco(endereco1, endereco2, distancia):
+    conexao = conectar_banco()
+    if conexao:
+        try:
+            cursor = conexao.cursor()
+            # Inserindo a distância no banco
+            query = """INSERT INTO distancias (endereco1, endereco2, distancia) VALUES (%s, %s, %s)"""
+            cursor.execute(query, (endereco1, endereco2, distancia))
+            conexao.commit()
+        except Exception as e:
+            print(f"Erro ao registrar no banco: {e}")
+        finally:
+            conexao.close()
+        
 
 def obter_coordenadas(endereco):
     url = f"https://nominatim.openstreetmap.org/search?q={endereco}&format=json"
@@ -49,13 +92,17 @@ def calcular():
     endereco1 = entrada_partida.get()
     endereco2 = entrada_chegada.get()
     
-    distancia = calcular_distancia(endereco1, endereco2)
-    if distancia is not None:
-        area = classificar_area(distancia)
-        distancia_percorrida = distancia * (1.4)
-        resultado.set(f"Distância: {distancia} km\nÁrea de entrega: {area}\nDistância percorrida: {distancia_percorrida}")
-    else:
-        messagebox.showerror("Erro", "Não foi possível obter a distância.")
+    distancia = obter_ditancia_banco(endereco1, endereco2)
+
+    if distancia is None:
+        distancia = calcular_distancia(endereco1, endereco2)
+        if distancia is None:
+            registrar_distancia_banco(endereco1, endereco2, distancia)
+        else:
+            messagebox.showerror("Erro","Não foi possível obter a distãncia.")
+            return
+        
+
 
 # Criando a interface gráfica
 root = tk.Tk()
@@ -80,3 +127,4 @@ resultado = tk.StringVar()
 tk.Label(frame, textvariable=resultado, font=("Arial", 12, "bold"), fg="blue", bg="#ffffff").pack()
 
 root.mainloop()
+
