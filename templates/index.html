@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Routes</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+        }
+        input[type="text"] {
+            width: 80%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            margin-left: auto;
+            margin-right: auto;
+            display: block;
+        }
+        button {
+            width: 80%;
+            padding: 10px;
+            background-color: #194b0a;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        button:hover {
+            background-color: #000000;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+        }
+        .error {
+            color: red;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Mapeie as áreas de entregas.</h1>
+        <form method="POST">
+            <label for="partida">Endereço de Saída:</label>
+            <input type="text" id="partida" name="partida" required>
+
+            <label for="chegada">Endereço de Chegada:</label>
+            <input type="text" id="chegada" name="chegada" required>
+
+            <button type="submit">Calcular Distância</button>
+        </form>
+
+        {% if distancia %}
+            <div class="result">
+                <p><strong>Distância:</strong> {{ distancia }} km</p>
+                <p><strong>Área de Entrega:</strong> {{ area }}</p>
+            </div>
+        {% elif erro %}
+            <div class="error">{{ erro }}</div>
+        {% endif %}
+    </div>
+
+</body>
+</html>

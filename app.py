@@ -1,10 +1,10 @@
 import requests
 from geopy.distance import geodesic
 import numpy as np
-import tkinter as tk
-from tkinter import messagebox
 import psycopg2
+from flask import Flask, render_template, request, redirect, url_for
 
+app = Flask(__name__)
 
 def conectar_banco():
     try:
@@ -19,16 +19,21 @@ def conectar_banco():
         print(f'Erro ao conectar ao banco: {e}')
         return None
 
-def obter_ditancia_banco(endereco1, endereco2):
+def obter_distancia_banco(endereco1, endereco2):
     conexao = conectar_banco()
     if conexao:
         try:
             cursor = conexao.cursor()
             query = """SELECT distancia FROM distancias WHERE endereco1 = %s AND endereco2 = %s"""
             cursor.execute(query, (endereco1, endereco2))
-            conexao.commit()
+            resultado = cursor.fetchone()
+            if resultado:
+                return resultado[0]
+            else:
+                return  None
         except Exception as e:
-            print(f"Erro ao registrar no banco: {e}")
+            print(f'Erro ao consultar o banco: {e}')
+            return None
         finally:
             conexao.close()
 
@@ -37,7 +42,6 @@ def registrar_distancia_banco(endereco1, endereco2, distancia):
     if conexao:
         try:
             cursor = conexao.cursor()
-            # Inserindo a distância no banco
             query = """INSERT INTO distancias (endereco1, endereco2, distancia) VALUES (%s, %s, %s)"""
             cursor.execute(query, (endereco1, endereco2, distancia))
             conexao.commit()
@@ -45,8 +49,7 @@ def registrar_distancia_banco(endereco1, endereco2, distancia):
             print(f"Erro ao registrar no banco: {e}")
         finally:
             conexao.close()
-        
-
+            
 def obter_coordenadas(endereco):
     url = f"https://nominatim.openstreetmap.org/search?q={endereco}&format=json"
     response = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
@@ -61,11 +64,12 @@ def calcular_distancia(endereco1, endereco2):
     coordenadas1 = obter_coordenadas(endereco1)
     coordenadas2 = obter_coordenadas(endereco2)
     
-    if coordenadas1 and coordenadas2:
-        distancia = geodesic(coordenadas1, coordenadas2).kilometers
-        return np.round(distancia, 2)
-    else:
+    if coordenadas1 is None or coordenadas2 is None:
+        print("Não foi possível obter as coordenadas.")
         return None
+    
+    distancia = geodesic(coordenadas1, coordenadas2).kilometers
+    return np.round(distancia,2)
 
 def classificar_area(distancia):
     areas_de_entrega = {
@@ -88,43 +92,33 @@ def classificar_area(distancia):
     
     return "Fora da área de entrega"
 
-def calcular():
-    endereco1 = entrada_partida.get()
-    endereco2 = entrada_chegada.get()
-    
-    distancia = obter_ditancia_banco(endereco1, endereco2)
+def calcular(endereco1, endereco2):
 
+
+    distancia = obter_distancia_banco(endereco1, endereco2)
+    
     if distancia is None:
         distancia = calcular_distancia(endereco1, endereco2)
-        if distancia is None:
+        if distancia is not None:
             registrar_distancia_banco(endereco1, endereco2, distancia)
         else:
-            messagebox.showerror("Erro","Não foi possível obter a distãncia.")
-            return
+           return None, "Não foi possível calcular a distância."
+    area = classificar_area(distancia)
+    return distancia, area
+
+@app.route("/", methods=["GET", "POST"])
+def index():
+    if request.method == "POST":
+        endereco1 = request.form["partida"]
+        endereco2 = request.form["chegada"]
+
+        distancia, area_ou_erro = calcular(endereco1, endereco2)
+
+        if distancia is None:
+            return render_template("index.html", erro=area_ou_erro)
         
+        return render_template("index.html", distancia=distancia, area=area_ou_erro)
+    return render_template("index.html")
 
-
-# Criando a interface gráfica
-root = tk.Tk()
-root.title("Áreas de entrega")
-root.geometry("400x250")
-root.configure(bg="#f0f0f0")
-
-frame = tk.Frame(root, padx=10, pady=10, bg="#ffffff", relief=tk.RIDGE, borderwidth=3)
-frame.pack(pady=20, padx=20)
-
-tk.Label(frame, text="Endereço de Partida:", bg="#ffffff", font=("Arial", 10, "bold")).pack()
-entrada_partida = tk.Entry(frame, width=50, relief=tk.GROOVE, borderwidth=2)
-entrada_partida.pack(pady=5)
-
-tk.Label(frame, text="Endereço de Chegada:", bg="#ffffff", font=("Arial", 10, "bold")).pack()
-entrada_chegada = tk.Entry(frame, width=50, relief=tk.GROOVE, borderwidth=2)
-entrada_chegada.pack(pady=5)
-
-tk.Button(frame, text="Calcular", command=calcular, font=("Arial", 10, "bold"), bg="#4CAF50", fg="white", relief=tk.RAISED).pack(pady=10)
-
-resultado = tk.StringVar()
-tk.Label(frame, textvariable=resultado, font=("Arial", 12, "bold"), fg="blue", bg="#ffffff").pack()
-
-root.mainloop()
-
+if __name__ == "__main__":
+    app.run(debug=True)
